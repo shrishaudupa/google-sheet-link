@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google Login</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <h1>Welcome</h1>
+            <p>Sign in with Google to continue.</p>
+
+            <button id="googleLoginBtn">Login with Google</button>
+            <p id="statusMessage" role="status"></p>
+        </div>
+    </div>
+
+    <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
+    <script>
+        const CLIENT_ID = "575192144363-gftvgroqe8qmqpa4bdnc5k7slesca3up.apps.googleusercontent.com";
+
+        let tokenClient;
+
+        const loginButton = document.getElementById("googleLoginBtn");
+        const statusMessage = document.getElementById("statusMessage");
+
+        function setStatus(message) {
+            statusMessage.textContent = message;
+            console.log(message);
+        }
+
+        function gisLoaded() {
+            tokenClient = google.accounts.oauth2.initTokenClient({
+                client_id: CLIENT_ID,
+                scope: "openid email profile",
+                callback: (response) => {
+                    console.log("Google login response:", response);
+
+                    if (response.error) {
+                        setStatus(`Google login failed: ${response.error}`);
+                        return;
+                    }
+
+                    if (!response.access_token) {
+                        setStatus("Google did not return an access token.");
+                        return;
+                    }
+
+                    window.location.href = "/connected";
+                },
+                error_callback: (error) => {
+                    console.error("Google login error:", error);
+                    setStatus(`Google login failed: ${error.type || "unknown error"}`);
+                }
+            });
+
+            setStatus("Ready to login.");
+        }
+
+        loginButton.onclick = () => {
+            if (!tokenClient) {
+                setStatus("Google login is still loading. Please try again in a moment.");
+                return;
+            }
+
+            setStatus("Opening Google login...");
+            tokenClient.requestAccessToken({
+                prompt: "consent"
+            });
+        };
+
+        loginButton.onclick = () => {
+            window.location.href = "http://localhost:5001/api/googleSheetsIntegration/login";
+        };
+    </script>
+</body>
+</html>

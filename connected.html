@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Google Login</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <h1>Google Sheets</h1>
+            <p id="statusMessage" role="status">Checking Google Sheets connection...</p>
+            <button id="googleLoginBtn" hidden>Login with Google</button>
+        </div>
+    </div>
+
+    <script>
+        const CHECK_CONNECTION_URL = "http://localhost:5001/api/googleSheetsIntegration/checkConnection";
+        const LOGIN_URL = "http://localhost:5001/api/googleSheetsIntegration/login";
+
+        const loginButton = document.getElementById("googleLoginBtn");
+        const statusMessage = document.getElementById("statusMessage");
+
+        function setStatus(message) {
+            statusMessage.textContent = message;
+            console.log(message);
+        }
+
+        async function checkGoogleSheetsConnection() {
+            try {
+                const response = await fetch(CHECK_CONNECTION_URL, {
+                    method: "GET",
+                    credentials: "include"
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Request failed with status ${response.status}`);
+                }
+
+                const result = await response.json();
+                setStatus(result.message);
+                loginButton.hidden = result.connected;
+            } catch (error) {
+                console.error("Google Sheets connection check failed:", error);
+                setStatus("Could not check Google Sheets connection. Please try logging in again.");
+                loginButton.hidden = false;
+            }
+        }
+
+        loginButton.onclick = () => {
+            window.location.href = LOGIN_URL;
+        };
+
+        checkGoogleSheetsConnection();
+    </script>
+</body>
+</html>
