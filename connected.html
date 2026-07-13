@@ -1,90 +1,294 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
-    <title>Google Login</title>
-    <link rel="stylesheet" href="style.css">
-</head>
-<body>
-    <div class="container">
-        <div class="card">
-            <h1>Google Sheets</h1>
-            <p id="statusMessage" role="status">Checking Google Sheets connection...</p>
-            <button id="pickSheetBtn" hidden>Select Google Sheet</button>
-        </div>
-    </div>
+    <title>Google Sheets Integration</title>
 
     <script async defer src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
 
-    <script>
-        const CHECK_CONNECTION_URL = "http://localhost:5001/api/googleSheetsIntegration/checkConnection";
-        const LOGIN_URL = "http://localhost:5001/api/googleSheetsIntegration/login";
-
-        let pickerApiLoaded = false;
-        const pickBtn = document.getElementById("pickSheetBtn");
-
-        function gapiLoaded() {
-            gapi.load('picker', { 'callback': () => { pickerApiLoaded = true; } });
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: "Segoe UI", sans-serif;
         }
 
-        // Call this function when the user clicks "Select Google Sheet"
-        pickBtn.onclick = async () => {
-            // 1. Fetch a fresh access token from your backend
-            const tokenResponse = await fetch("http://localhost:5001/api/googleSheetsIntegration/getAccessToken");
-            const { accessToken } = await tokenResponse.json();
-
-            console.log("accessToken", accessToken);
-            console.log(window.google);
-            console.log(window.gapi);
-            console.log(window.gapi.picker);
-
-
-            // 2. Build the picker
-            const picker = new google.picker.PickerBuilder()
-                .addView(google.picker.ViewId.SPREADSHEETS)
-                .setOAuthToken(accessToken)
-                .setDeveloperKey("AIzaSyBpjQ4tq3kspJbs2b5u3GGI_1dWLngMeNU") // From Google Cloud Console
-                .setCallback((data) => {
-                    if (data.action == google.picker.Action.PICKED) {
-                        const fileId = data.docs[0].id;
-                        const fileName = data.docs[0].name;
-                        // saveSheetToDatabase(fileId, fileName);
-
-                        console.log(fileId);
-                        console.log(fileName);
-                    }
-                })
-                .build();
-            picker.setVisible(true);
-        };
-
-        const statusMessage = document.getElementById("statusMessage");
-
-        function setStatus(message) {
-            statusMessage.textContent = message;
-            console.log(message);
+        body {
+            background: #f4f6f9;
         }
 
-        async function checkGoogleSheetsConnection() {
-            try {
-                const response = await fetch(CHECK_CONNECTION_URL, {
-                    method: "GET",
-                    credentials: "include"
+        .container {
+            width: 900px;
+            margin: 40px auto;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 10px;
+            color: #222;
+        }
+
+        #statusMessage {
+            text-align: center;
+            color: #666;
+            margin-bottom: 35px;
+        }
+
+        .source-card {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 18px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 3px 10px rgba(0,0,0,.08);
+            transition: .2s;
+        }
+
+        .source-card:hover {
+            transform: translateY(-2px);
+        }
+
+        .left h3 {
+            margin-bottom: 6px;
+            color: #202124;
+        }
+
+        .source-id {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .sheet-name {
+            margin-top: 10px;
+            color: #188038;
+            font-weight: 500;
+        }
+
+        .not-selected {
+            color: #d93025;
+        }
+
+        button {
+            background: #1a73e8;
+            color: white;
+            border: none;
+            padding: 11px 18px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        button:hover {
+            background: #1558b0;
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="container">
+
+    <h1>Google Sheets Integration</h1>
+
+    <p id="statusMessage">
+        Map every source to its Google Sheet.
+    </p>
+
+    <div id="sourcesContainer"></div>
+
+</div>
+
+<script>
+
+const CHECK_CONNECTION_URL = "http://localhost:5001/api/googleSheetsIntegration/checkConnection";
+const ACCESS_TOKEN_URL = "http://localhost:5001/api/googleSheetsIntegration/getAccessToken";
+const PREVIEW_URL = "http://localhost:5001/api/googleSheetsIntegration/getSheetPreview";
+
+const sources = [
+    {
+        id: 1,
+        name: "Source 1",
+        sheetId: null,
+        sheetName: null
+    },
+    {
+        id: 2,
+        name: "Source 2",
+        sheetId: null,
+        sheetName: null
+    },
+    {
+        id: 3,
+        name: "Source 3",
+        sheetId: null,
+        sheetName: null
+    },
+    {
+        id: 4,
+        name: "Source 4",
+        sheetId: null,
+        sheetName: null
+    },
+    {
+        id: 5,
+        name: "Source 5",
+        sheetId: null,
+        sheetName: null
+    }
+];
+
+let pickerApiLoaded = false;
+
+function gapiLoaded() {
+    gapi.load("picker", {
+        callback: () => {
+            pickerApiLoaded = true;
+        }
+    });
+}
+
+renderSources();
+
+function renderSources() {
+
+    const container = document.getElementById("sourcesContainer");
+
+    container.innerHTML = "";
+
+    sources.forEach(source => {
+
+        container.innerHTML += `
+            <div class="source-card">
+
+                <div class="left">
+
+                    <h3>${source.name}</h3>
+
+                    <div class="source-id">
+                        Source ID : ${source.id}
+                    </div>
+
+                    <div
+                        id="sheet-${source.id}"
+                        class="sheet-name ${source.sheetName ? "" : "not-selected"}">
+
+                        ${
+                            source.sheetName
+                                ? "Linked Sheet : " + source.sheetName
+                                : "No Google Sheet Selected"
+                        }
+
+                    </div>
+
+                </div>
+
+                <button onclick="selectSheet(${source.id})">
+                    Select Google Sheet
+                </button>
+
+            </div>
+        `;
+    });
+
+}
+
+async function selectSheet(sourceId) {
+
+    if (!pickerApiLoaded) {
+        alert("Google Picker API is still loading.");
+        return;
+    }
+
+    const tokenResponse = await fetch(ACCESS_TOKEN_URL);
+
+    const tokenData = await tokenResponse.json();
+
+    const accessToken = tokenData.accessToken;
+
+    const picker = new google.picker.PickerBuilder()
+
+        .addView(google.picker.ViewId.SPREADSHEETS)
+
+        .setOAuthToken(accessToken)
+
+        .setDeveloperKey("AIzaSyBpjQ4tq3kspJbs2b5u3GGI_1dWLngMeNU")
+
+        .setCallback((data) => {
+
+            if (data.action === google.picker.Action.PICKED) {
+
+                const sheet = data.docs[0];
+
+                console.log({
+                    sourceId,
+                    sheetId: sheet.id,
+                    sheetName: sheet.name
                 });
 
-                if (!response.ok) {
-                    throw new Error(`Request failed with status ${response.status}`);
-                }
 
-                const result = await response.json();
-                setStatus(result.message);
-            } catch (error) {
-                console.error("Google Sheets connection check failed:", error);
-                setStatus("Could not check Google Sheets connection. Please try logging in again.");
+
+                const source = sources.find(s => s.id === sourceId);
+
+                source.sheetId = sheet.id;
+                source.sheetName = sheet.name;
+
+                renderSources();
+
+                /*
+                    Save mapping
+
+                    fetch("/api/googleSheetsIntegration/saveMapping",{
+                        method:"POST",
+                        headers:{
+                            "Content-Type":"application/json"
+                        },
+                        body:JSON.stringify({
+                            sourceId,
+                            sheetId:sheet.id,
+                            sheetName:sheet.name
+                        })
+                    });
+
+                */
+
             }
-        }
 
-        checkGoogleSheetsConnection();
-    </script>
+        })
+
+        .build();
+
+    picker.setVisible(true);
+
+}
+
+async function checkConnection() {
+
+    try {
+
+        const response = await fetch(CHECK_CONNECTION_URL);
+
+        const result = await response.json();
+
+        document.getElementById("statusMessage").innerHTML = result.message;
+
+    }
+    catch {
+
+        document.getElementById("statusMessage").innerHTML =
+            "Unable to verify Google connection.";
+
+    }
+
+}
+
+checkConnection();
+
+</script>
+
 </body>
+
 </html>
