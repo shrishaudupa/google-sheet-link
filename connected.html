@@ -10,15 +10,54 @@
         <div class="card">
             <h1>Google Sheets</h1>
             <p id="statusMessage" role="status">Checking Google Sheets connection...</p>
-            <button id="googleLoginBtn" hidden>Login with Google</button>
+            <button id="pickSheetBtn" hidden>Select Google Sheet</button>
         </div>
     </div>
+
+    <script async defer src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
 
     <script>
         const CHECK_CONNECTION_URL = "http://localhost:5001/api/googleSheetsIntegration/checkConnection";
         const LOGIN_URL = "http://localhost:5001/api/googleSheetsIntegration/login";
 
-        const loginButton = document.getElementById("googleLoginBtn");
+        let pickerApiLoaded = false;
+        const pickBtn = document.getElementById("pickSheetBtn");
+
+        function gapiLoaded() {
+            gapi.load('picker', { 'callback': () => { pickerApiLoaded = true; } });
+        }
+
+        // Call this function when the user clicks "Select Google Sheet"
+        pickBtn.onclick = async () => {
+            // 1. Fetch a fresh access token from your backend
+            const tokenResponse = await fetch("http://localhost:5001/api/googleSheetsIntegration/getAccessToken");
+            const { accessToken } = await tokenResponse.json();
+
+            console.log("accessToken", accessToken);
+            console.log(window.google);
+            console.log(window.gapi);
+            console.log(window.gapi.picker);
+
+
+            // 2. Build the picker
+            const picker = new google.picker.PickerBuilder()
+                .addView(google.picker.ViewId.SPREADSHEETS)
+                .setOAuthToken(accessToken)
+                .setDeveloperKey("AIzaSyBpjQ4tq3kspJbs2b5u3GGI_1dWLngMeNU") // From Google Cloud Console
+                .setCallback((data) => {
+                    if (data.action == google.picker.Action.PICKED) {
+                        const fileId = data.docs[0].id;
+                        const fileName = data.docs[0].name;
+                        // saveSheetToDatabase(fileId, fileName);
+
+                        console.log(fileId);
+                        console.log(fileName);
+                    }
+                })
+                .build();
+            picker.setVisible(true);
+        };
+
         const statusMessage = document.getElementById("statusMessage");
 
         function setStatus(message) {
@@ -39,17 +78,11 @@
 
                 const result = await response.json();
                 setStatus(result.message);
-                loginButton.hidden = result.connected;
             } catch (error) {
                 console.error("Google Sheets connection check failed:", error);
                 setStatus("Could not check Google Sheets connection. Please try logging in again.");
-                loginButton.hidden = false;
             }
         }
-
-        loginButton.onclick = () => {
-            window.location.href = LOGIN_URL;
-        };
 
         checkGoogleSheetsConnection();
     </script>
