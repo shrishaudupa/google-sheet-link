@@ -46,6 +46,7 @@
     
     let pickerApiLoaded = false;
     let currentSourceId = null;
+    const DEFAULT_HEADER_ROW_INDEX = 0;
     const sources = [{id: 1, name: "Source 1"}, {id: 2, name: "Source 2"}, {id: 3, name: "Source 3"}];
 
     function gapiLoaded() { gapi.load("picker", { callback: () => { pickerApiLoaded = true; } }); }
@@ -78,6 +79,9 @@
                     });
                     
                     const { rows } = await res.json();
+                    const defaultHeaders = rows[DEFAULT_HEADER_ROW_INDEX] || [];
+
+                    selectHeaderRow(defaultHeaders);
                     renderPreview(rows);
                 }
             }).build().setVisible(true);
@@ -96,6 +100,9 @@
     }
 
     function selectHeaderRow(headerRow) {
+        console.log("Selected headers:", headerRow);
+        console.log("Selected sourceId:", currentSourceId);
+
         const dbColumns = ["Name", "Email", "Phone"];
         const mapping = {};
         
@@ -104,7 +111,6 @@
         });
 
         console.log(`Mapping for Source ${currentSourceId}:`, mapping);
-        alert("Mapping captured! Check console.");
         document.getElementById('previewContainer').style.display = 'none';
     }
 
