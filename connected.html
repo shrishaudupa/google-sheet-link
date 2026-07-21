@@ -43,9 +43,11 @@
 <script>
     const ACCESS_TOKEN_URL = "http://localhost:5001/api/googleSheetsIntegration/getAccessToken";
     const PREVIEW_URL = "http://localhost:5001/api/googleSheetsIntegration/getSheetPreview";
+    const SAVE_SHEETS_URL = "http://localhost:5001/api/googleSheetsIntegration/saveSheets";
     
     let pickerApiLoaded = false;
     let currentSourceId = null;
+    let currentSheetId = null;
     const DEFAULT_HEADER_ROW_INDEX = 0;
     const sources = [{id: 1, name: "Source 1"}, {id: 2, name: "Source 2"}, {id: 3, name: "Source 3"}];
 
@@ -64,24 +66,25 @@
     async function selectSheet(sourceId) {
         if (!pickerApiLoaded) return alert("Picker loading...");
         currentSourceId = sourceId;
-        const tokenData = await (await fetch(ACCESS_TOKEN_URL)).json();
+        const userRefreshToken = await (await fetch(ACCESS_TOKEN_URL)).json();
         
         new google.picker.PickerBuilder()
             .addView(google.picker.ViewId.SPREADSHEETS)
-            .setOAuthToken(tokenData.accessToken)
+            .setOAuthToken(userRefreshToken.accessToken)
             .setDeveloperKey("AIzaSyBpjQ4tq3kspJbs2b5u3GGI_1dWLngMeNU")
             .setCallback(async (data) => {
                 if (data.action === google.picker.Action.PICKED) {
+                    currentSheetId = data.docs[0].id;
                     const res = await fetch(PREVIEW_URL, {
                         method: "POST",
                         headers: {"Content-Type": "application/json"},
-                        body: JSON.stringify({ fileId: data.docs[0].id })
+                        body: JSON.stringify({ fileId: currentSheetId })
                     });
                     
                     const { rows } = await res.json();
                     const defaultHeaders = rows[DEFAULT_HEADER_ROW_INDEX] || [];
 
-                    selectHeaderRow(defaultHeaders);
+                    selectHeaderRow(userRefreshToken.accessToken, defaultHeaders);
                     renderPreview(rows);
                 }
             }).build().setVisible(true);
@@ -99,18 +102,30 @@
         document.getElementById('previewContainer').style.display = "block";
     }
 
-    function selectHeaderRow(headerRow) {
+    async function selectHeaderRow(accessToken, headerRow) {
         console.log("Selected headers:", headerRow);
         console.log("Selected sourceId:", currentSourceId);
 
         const dbColumns = ["Name", "Email", "Phone"];
-        const mapping = {};
+        const headerMapping = {};
         
         dbColumns.forEach((col, index) => {
-            mapping[col] = headerRow[index] || "Unmapped";
+            headerMapping[col] = headerRow[index] || "Unmapped";
         });
 
-        console.log(`Mapping for Source ${currentSourceId}:`, mapping);
+        console.log(`Mapping for Source ${currentSourceId}:`, headerMapping);
+
+        await fetch(SAVE_SHEETS_URL, {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({
+                userRefreshToken: accessToken,
+                sourceId: currentSourceId,
+                headerMapping,
+                sheetId: currentSheetId
+            })
+        });
+
         document.getElementById('previewContainer').style.display = 'none';
     }
 

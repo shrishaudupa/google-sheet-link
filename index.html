@@ -72,7 +72,9 @@
         };
 
         loginButton.onclick = () => {
-            window.location.href = "http://localhost:5001/api/googleSheetsIntegration/login";
+            // const redirectUrl = encodeURIComponent(window.location.href);
+            const redirectUrl = "http://localhost:3000/connected";
+            window.location.href = `http://localhost:5001/api/googleSheetsIntegration/login?redirectUrl=${redirectUrl}`;
         };
     </script>
 </body>
