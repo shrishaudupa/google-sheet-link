@@ -23,6 +23,33 @@
         #previewTable { width: 100%; border-collapse: collapse; margin-top: 15px; }
         #previewTable td { border: 1px solid #ddd; padding: 8px; cursor: pointer; }
         #previewTable tr:hover { background-color: #f1f3f4; }
+
+        /* Sheet (tab) picker modal styles */
+        #sheetTabModal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.4);
+            align-items: center;
+            justify-content: center;
+        }
+        #sheetTabModalContent {
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            width: 400px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+        }
+        #sheetTabList { list-style: none; margin-top: 15px; }
+        #sheetTabList li {
+            padding: 10px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            cursor: pointer;
+        }
+        #sheetTabList li:hover { background: #f1f3f4; }
+        #sheetTabList li.selected { border-color: #1a73e8; background: #e8f0fe; }
     </style>
 </head>
 <body>
@@ -40,14 +67,30 @@
     </div>
 </div>
 
+<!-- Sheet Tab Picker Modal -->
+<div id="sheetTabModal">
+    <div id="sheetTabModalContent">
+        <h3>Choose a sheet (tab)</h3>
+        <p style="margin-top:5px; color:#5f6368; font-size:13px;">This spreadsheet has multiple sheets. Select the one you want to use.</p>
+        <ul id="sheetTabList"></ul>
+        <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:15px;">
+            <button id="cancelSheetTabBtn" style="background:#5f6368;">Cancel</button>
+            <button id="confirmSheetTabBtn">Continue</button>
+        </div>
+    </div>
+</div>
+
 <script>
     const ACCESS_TOKEN_URL = "http://localhost:5001/api/googleSheetsIntegration/getAccessToken";
     const PREVIEW_URL = "http://localhost:5001/api/googleSheetsIntegration/getSheetPreview";
     const SAVE_SHEETS_URL = "http://localhost:5001/api/googleSheetsIntegration/saveSheets";
+    const SHEET_TABS_URL = "http://localhost:5001/api/googleSheetsIntegration/getSheetTabs";
     
     let pickerApiLoaded = false;
     let currentSourceId = null;
-    let currentSheetId = null;
+    let currentSheetId = null; // spreadsheet file id
+    let currentSheetTabName = null; // selected tab name (e.g. "Sheet1")
+    let currentUserRefreshToken = null; // CHANGED: renamed from currentAccessToken for clarity
     const DEFAULT_HEADER_ROW_INDEX = 0;
     const sources = [{id: 1, name: "Source 1"}, {id: 2, name: "Source 2"}, {id: 3, name: "Source 3"}];
 
@@ -66,28 +109,85 @@
     async function selectSheet(sourceId) {
         if (!pickerApiLoaded) return alert("Picker loading...");
         currentSourceId = sourceId;
-        const userRefreshToken = await (await fetch(ACCESS_TOKEN_URL)).json();
+        const tokenResponse = await (await fetch(ACCESS_TOKEN_URL)).json();
+
+        console.log("Token response:", tokenResponse);
+        // CHANGED: keep both, since the Picker needs the accessToken but our backend calls need the refresh token
+        currentUserRefreshToken = tokenResponse.refreshToken;
         
         new google.picker.PickerBuilder()
             .addView(google.picker.ViewId.SPREADSHEETS)
-            .setOAuthToken(userRefreshToken.accessToken)
+            .setOAuthToken(tokenResponse.accessToken)
             .setDeveloperKey("AIzaSyBpjQ4tq3kspJbs2b5u3GGI_1dWLngMeNU")
             .setCallback(async (data) => {
                 if (data.action === google.picker.Action.PICKED) {
                     currentSheetId = data.docs[0].id;
-                    const res = await fetch(PREVIEW_URL, {
-                        method: "POST",
-                        headers: {"Content-Type": "application/json"},
-                        body: JSON.stringify({ fileId: currentSheetId })
-                    });
-                    
-                    const { rows } = await res.json();
-                    const defaultHeaders = rows[DEFAULT_HEADER_ROW_INDEX] || [];
 
-                    selectHeaderRow(userRefreshToken.accessToken, defaultHeaders);
-                    renderPreview(rows);
+                    console.log("Selected Sheet ID:", currentSheetId);
+
+                    // CHANGED: pass the refresh token (not access token) since that's what the backend expects
+                    await promptForSheetTab(tokenResponse.accessToken, currentSheetId);
                 }
             }).build().setVisible(true);
+    }
+
+    // CHANGED: request body now matches backend's getSheetTabs handler: { userRefreshToken, sheetId }
+    async function promptForSheetTab(accessToken, sheetId) {
+        const res = await fetch(SHEET_TABS_URL, {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({ accessToken, sheetId })
+        });
+
+        const { sheetTabs } = await res.json(); // [{ sheetId, title, index }, ...]
+
+        if (!sheetTabs || sheetTabs.length === 0) {
+            alert("No sheets found in this spreadsheet.");
+            return;
+        }
+
+        if (sheetTabs.length === 1) {
+            // Only one tab exists, skip the picker and go straight to header selection
+            currentSheetTabName = sheetTabs[0].title;
+            selectHeaderRow(accessToken, []);
+            return;
+        }
+
+        renderSheetTabModal(sheetTabs, accessToken);
+    }
+
+    // CHANGED: param renamed to userRefreshToken to match what's threaded through
+    function renderSheetTabModal(sheetTabs, userRefreshToken) {
+        const list = document.getElementById('sheetTabList');
+        list.innerHTML = "";
+        let selectedTab = null;
+
+        sheetTabs.forEach(tab => {
+            const li = document.createElement('li');
+            li.textContent = tab.title;
+            li.onclick = () => {
+                document.querySelectorAll('#sheetTabList li').forEach(el => el.classList.remove('selected'));
+                li.classList.add('selected');
+                selectedTab = tab.title;
+            };
+            list.appendChild(li);
+        });
+
+        document.getElementById('sheetTabModal').style.display = 'flex';
+
+        document.getElementById('confirmSheetTabBtn').onclick = () => {
+            if (!selectedTab) {
+                alert("Please select a sheet tab first.");
+                return;
+            }
+            currentSheetTabName = selectedTab;
+            document.getElementById('sheetTabModal').style.display = 'none';
+            selectHeaderRow(userRefreshToken, []);
+        };
+
+        document.getElementById('cancelSheetTabBtn').onclick = () => {
+            document.getElementById('sheetTabModal').style.display = 'none';
+        };
     }
 
     function renderPreview(rows) {
@@ -102,9 +202,10 @@
         document.getElementById('previewContainer').style.display = "block";
     }
 
-    async function selectHeaderRow(accessToken, headerRow) {
+    async function selectHeaderRow(userRefreshToken, headerRow = []) {
         console.log("Selected headers:", headerRow);
         console.log("Selected sourceId:", currentSourceId);
+        console.log("Selected sheet tab:", currentSheetTabName);
 
         const dbColumns = ["Name", "Email", "Phone"];
         const headerMapping = {};
@@ -119,10 +220,12 @@
             method: "POST",
             headers: {"Content-Type": "application/json"},
             body: JSON.stringify({
-                userRefreshToken: accessToken,
+                userRefreshToken,
                 sourceId: currentSourceId,
                 headerMapping,
-                sheetId: currentSheetId
+                sheetId: currentSheetId,
+                sheetTabName: currentSheetTabName,
+                headerRowNo: 1
             })
         });
 
