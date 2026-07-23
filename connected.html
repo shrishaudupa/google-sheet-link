@@ -17,12 +17,14 @@
         h1 { text-align: center; margin-bottom: 20px; }
         .source-card { background: white; border-radius: 10px; padding: 20px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 3px 10px rgba(0,0,0,.08); }
         button { background: #1a73e8; color: white; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; }
-        
+
         /* Preview Modal Styles */
         #previewContainer { display: none; background: white; padding: 20px; border-radius: 10px; margin-top: 20px; box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
         #previewTable { width: 100%; border-collapse: collapse; margin-top: 15px; }
         #previewTable td { border: 1px solid #ddd; padding: 8px; cursor: pointer; }
         #previewTable tr:hover { background-color: #f1f3f4; }
+        #previewTable tr.selected-row { background-color: #e8f0fe; }
+        #previewHint { color: #5f6368; font-size: 13px; margin-top: 4px; }
 
         /* Sheet (tab) picker modal styles */
         #sheetTabModal {
@@ -62,6 +64,7 @@
     <!-- Preview Section -->
     <div id="previewContainer">
         <h3>Click the row that contains your headers</h3>
+        <p id="previewHint">The row you click will be used as column headers for this sheet.</p>
         <table id="previewTable"></table>
         <button onclick="document.getElementById('previewContainer').style.display='none'" style="margin-top:10px; background:#5f6368;">Close</button>
     </div>
@@ -85,13 +88,14 @@
     const PREVIEW_URL = "http://localhost:5001/api/googleSheetsIntegration/getSheetPreview";
     const SAVE_SHEETS_URL = "http://localhost:5001/api/googleSheetsIntegration/saveSheets";
     const SHEET_TABS_URL = "http://localhost:5001/api/googleSheetsIntegration/getSheetTabs";
-    
+
     let pickerApiLoaded = false;
     let currentSourceId = null;
     let currentSheetId = null; // spreadsheet file id
     let currentSheetTabName = null; // selected tab name (e.g. "Sheet1")
-    let currentUserRefreshToken = null; // CHANGED: renamed from currentAccessToken for clarity
+    let currentUserRefreshToken = null; // used for all backend calls (picker itself uses the short-lived accessToken)
     const DEFAULT_HEADER_ROW_INDEX = 0;
+    const PREVIEW_ROW_LIMIT = 10; // how many rows to show in the header-picker preview
     const sources = [{id: 1, name: "Source 1"}, {id: 2, name: "Source 2"}, {id: 3, name: "Source 3"}];
 
     function gapiLoaded() { gapi.load("picker", { callback: () => { pickerApiLoaded = true; } }); }
@@ -111,27 +115,21 @@
         currentSourceId = sourceId;
         const tokenResponse = await (await fetch(ACCESS_TOKEN_URL)).json();
 
-        console.log("Token response:", tokenResponse);
-        // CHANGED: keep both, since the Picker needs the accessToken but our backend calls need the refresh token
-        currentUserRefreshToken = tokenResponse.refreshToken;
-        
+        const accessToken = tokenResponse.accessToken;       // for the Picker widget + read-only preview/tabs calls
+        currentUserRefreshToken = tokenResponse.refreshToken; // for saveSheets, which needs long-term access
+
         new google.picker.PickerBuilder()
             .addView(google.picker.ViewId.SPREADSHEETS)
-            .setOAuthToken(tokenResponse.accessToken)
+            .setOAuthToken(accessToken)
             .setDeveloperKey("AIzaSyBpjQ4tq3kspJbs2b5u3GGI_1dWLngMeNU")
             .setCallback(async (data) => {
                 if (data.action === google.picker.Action.PICKED) {
                     currentSheetId = data.docs[0].id;
-
-                    console.log("Selected Sheet ID:", currentSheetId);
-
-                    // CHANGED: pass the refresh token (not access token) since that's what the backend expects
-                    await promptForSheetTab(tokenResponse.accessToken, currentSheetId);
+                    await promptForSheetTab(accessToken, currentSheetId);
                 }
             }).build().setVisible(true);
     }
 
-    // CHANGED: request body now matches backend's getSheetTabs handler: { userRefreshToken, sheetId }
     async function promptForSheetTab(accessToken, sheetId) {
         const res = await fetch(SHEET_TABS_URL, {
             method: "POST",
@@ -147,17 +145,16 @@
         }
 
         if (sheetTabs.length === 1) {
-            // Only one tab exists, skip the picker and go straight to header selection
+            // Only one tab exists, skip the picker and go straight to the header-row preview
             currentSheetTabName = sheetTabs[0].title;
-            selectHeaderRow(accessToken, []);
+            await loadPreview(accessToken);
             return;
         }
 
         renderSheetTabModal(sheetTabs, accessToken);
     }
 
-    // CHANGED: param renamed to userRefreshToken to match what's threaded through
-    function renderSheetTabModal(sheetTabs, userRefreshToken) {
+    function renderSheetTabModal(sheetTabs, accessToken) {
         const list = document.getElementById('sheetTabList');
         list.innerHTML = "";
         let selectedTab = null;
@@ -175,14 +172,14 @@
 
         document.getElementById('sheetTabModal').style.display = 'flex';
 
-        document.getElementById('confirmSheetTabBtn').onclick = () => {
+        document.getElementById('confirmSheetTabBtn').onclick = async () => {
             if (!selectedTab) {
                 alert("Please select a sheet tab first.");
                 return;
             }
             currentSheetTabName = selectedTab;
             document.getElementById('sheetTabModal').style.display = 'none';
-            selectHeaderRow(userRefreshToken, []);
+            await loadPreview(accessToken);
         };
 
         document.getElementById('cancelSheetTabBtn').onclick = () => {
@@ -190,46 +187,100 @@
         };
     }
 
+    // Fetches a handful of rows from the chosen sheet/tab so the user can pick which one is the header row.
+    async function loadPreview(accessToken) {
+        const statusEl = document.getElementById('statusMessage');
+        statusEl.textContent = "Loading preview...";
+
+        try {
+            const res = await fetch(PREVIEW_URL, {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({
+                    accessToken,
+                    sheetId: currentSheetId,
+                    sheetTabName: currentSheetTabName,
+                    rowLimit: PREVIEW_ROW_LIMIT
+                })
+            });
+
+            if (!res.ok) throw new Error(`Preview request failed (${res.status})`);
+
+            const { rows } = await res.json(); // rows: string[][], each inner array is one spreadsheet row
+
+            if (!rows || rows.length === 0) {
+                alert("This sheet appears to be empty.");
+                statusEl.textContent = "Map every source to its Google Sheet.";
+                return;
+            }
+
+            statusEl.textContent = "Map every source to its Google Sheet.";
+            renderPreview(rows);
+        } catch (err) {
+            console.error("Failed to load preview:", err);
+            statusEl.textContent = "Couldn't load a preview for that sheet. Please try again.";
+        }
+    }
+
     function renderPreview(rows) {
         const table = document.getElementById('previewTable');
         table.innerHTML = "";
-        rows.forEach(row => {
+
+        rows.forEach((row, rowIndex) => {
             const tr = document.createElement('tr');
-            tr.onclick = () => selectHeaderRow(row);
-            row.forEach(cell => tr.innerHTML += `<td>${cell || '(empty)'}</td>`);
+            tr.onclick = () => {
+                document.querySelectorAll('#previewTable tr').forEach(el => el.classList.remove('selected-row'));
+                tr.classList.add('selected-row');
+                // Spreadsheet rows are 1-indexed, and the preview starts at row 1 (A1:Z...),
+                // so the row a user clicks at array position `rowIndex` is sheet row `rowIndex + 1`.
+                const headerRowNo = rowIndex + 1;
+                selectHeaderRow(currentUserRefreshToken, row, headerRowNo);
+            };
+            row.forEach(cell => {
+                const td = document.createElement('td');
+                td.textContent = (cell === undefined || cell === null || cell === "") ? '(empty)' : cell;
+                tr.appendChild(td);
+            });
             table.appendChild(tr);
         });
+
         document.getElementById('previewContainer').style.display = "block";
     }
 
-    async function selectHeaderRow(userRefreshToken, headerRow = []) {
-        console.log("Selected headers:", headerRow);
-        console.log("Selected sourceId:", currentSourceId);
-        console.log("Selected sheet tab:", currentSheetTabName);
-
+    async function selectHeaderRow(currentUserRefreshToken, headerRow = [], headerRowNo) {
         const dbColumns = ["Name", "Email", "Phone"];
         const headerMapping = {};
-        
+
         dbColumns.forEach((col, index) => {
             headerMapping[col] = headerRow[index] || "Unmapped";
         });
 
-        console.log(`Mapping for Source ${currentSourceId}:`, headerMapping);
+        const sourceName = sources.find(s => s.id === currentSourceId)?.name || "source";
+        document.getElementById('statusMessage').textContent = `Saving header mapping for ${sourceName}...`;
 
-        await fetch(SAVE_SHEETS_URL, {
-            method: "POST",
-            headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({
-                userRefreshToken,
-                sourceId: currentSourceId,
-                headerMapping,
-                sheetId: currentSheetId,
-                sheetTabName: currentSheetTabName,
-                headerRowNo: 1
-            })
-        });
+        try {
+            const res = await fetch(SAVE_SHEETS_URL, {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({
+                    userRefreshToken: currentUserRefreshToken, // saveSheets needs this, not the access token
+                    sourceId: currentSourceId,
+                    headerMapping,
+                    sheetId: currentSheetId,
+                    sheetTabName: currentSheetTabName,
+                    headerRowNo
+                })
+            });
 
-        document.getElementById('previewContainer').style.display = 'none';
+            if (!res.ok) throw new Error(`Save request failed (${res.status})`);
+
+            document.getElementById('statusMessage').textContent = `Headers mapped for ${sourceName}.`;
+        } catch (err) {
+            console.error("Failed to save header mapping:", err);
+            document.getElementById('statusMessage').textContent = `Couldn't save headers for ${sourceName}. Please try again.`;
+        } finally {
+            document.getElementById('previewContainer').style.display = 'none';
+        }
     }
 
     renderSources();
