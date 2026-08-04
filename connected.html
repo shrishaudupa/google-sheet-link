@@ -84,6 +84,8 @@
 </div>
 
 <script>
+    const ZYGN_ACCESS_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyIjp7ImlkIjoxLCJlbWFpbCI6ImFyaXZ1QGdtYWlsLmNvbSIsImZ1bGxuYW1lIjoiU2FnYXIgQmlyYWRhciIsImluaXRpYWxzIjoiU0IiLCJ1c2VyVHlwZSI6IkVtcGxveWVlIiwiZW1wbG95ZWVJZCI6MSwiY29tcGFueUlkIjoxLCJmaXJzdE5hbWUiOiJTYWdhciIsImxhc3ROYW1lIjoiQmlyYWRhciIsIm1vYmlsZU51bWJlciI6IjkxNjQzNjEyMzgiLCJlbXBsb3llZUVtYWlsSWQiOiJzYWdhci56eWduQGdtYWlsLmNvbSIsImVtcGxveWVlTnVtYmVyIjoiRU1QMDAwMDEiLCJhY2Nlc3MiOiJFbmFibGVkIiwiYXR0ZW5kYW5jZSI6IkVuYWJsZWQiLCJ2aXNpdG9ySWQiOiJmNTY4YTBlOWM1YTJmMHdlYjcyMzRjIiwiY29tcGFueU5hbWUiOiJQVEcgUFZUIExURCIsInRvTWFpbCI6InB0Z3RlY2giLCJlbXBsb3llZVR5cGUiOiJVc2VyIiwiY29tcGFueVN0YXR1cyI6IkFjdGl2ZSIsImNvbXBhbnlUeXBlIjoiQ3VzdG9tZXIiLCJjb21wYW55Z3N0TnVtYmVyIjoiR1NUSU4yOTA5ODg5RDYiLCJjb21wYW55UmVnaXN0ZXJlZFllYXIiOjIwMjMsImNvdW50cnlDb2RlIjoiSU4iLCJjb3VudHJ5IjoiSW5kaWEifSwiZW1wbG95ZWVSb2xlcyI6W3sidGVhbSI6IkhSIiwicm9sZSI6Ik1hbmFnZXIifSx7InRlYW0iOiJNYXJrZXRpbmciLCJyb2xlIjoiTWFuYWdlciJ9LHsidGVhbSI6IlNhbGVzIiwicm9sZSI6Ik1hbmFnZXIifSx7InRlYW0iOiJEZXNpZ24iLCJyb2xlIjoiTWFuYWdlciJ9LHsidGVhbSI6IkludmVudG9yeSIsInJvbGUiOiJNYW5hZ2VyIn0seyJ0ZWFtIjoiQWNjb3VudHMiLCJyb2xlIjoiRXhlY3V0aXZlIn0seyJ0ZWFtIjoiT25zaXRlIiwicm9sZSI6Ik1hbmFnZXIifSx7InRlYW0iOiJQcm9jdXJlbWVudCIsInJvbGUiOiJNYW5hZ2VyIn0seyJ0ZWFtIjoiUHJvZHVjdGlvbiIsInJvbGUiOiJNYW5hZ2VyIn0seyJ0ZWFtIjoiQWRtaW4iLCJyb2xlIjoiTWFuYWdlciJ9XSwiaWF0IjoxNzg1ODI1Njk0LCJleHAiOjE3ODU4Njg4OTR9.L7S5fD3vjCrZOPTD1uHFHOW9lwkUhN0x3Szn-YvYizo";
+
     const ACCESS_TOKEN_URL = "http://localhost:5001/api/googleSheetsIntegration/getAccessToken";
     const PREVIEW_URL = "http://localhost:5001/api/googleSheetsIntegration/getSheetPreview";
     const SAVE_SHEETS_URL = "http://localhost:5001/api/googleSheetsIntegration/saveSheets";
@@ -113,7 +115,13 @@
     async function selectSheet(sourceId) {
         if (!pickerApiLoaded) return alert("Picker loading...");
         currentSourceId = sourceId;
-        const tokenResponse = await (await fetch(ACCESS_TOKEN_URL)).json();
+        const tokenResponse = await (
+            await fetch(ACCESS_TOKEN_URL, {
+                headers: {
+                    Authorization: `Bearer ${ZYGN_ACCESS_TOKEN}`
+                }
+            })
+        ).json();
 
         const accessToken = tokenResponse.accessToken;       // for the Picker widget + read-only preview/tabs calls
         currentUserRefreshToken = tokenResponse.refreshToken; // for saveSheets, which needs long-term access
@@ -133,8 +141,14 @@
     async function promptForSheetTab(accessToken, sheetId) {
         const res = await fetch(SHEET_TABS_URL, {
             method: "POST",
-            headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({ accessToken, sheetId })
+            headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${ZYGN_ACCESS_TOKEN}`
+            },
+            body: JSON.stringify({
+                accessToken,
+                sheetId
+            })
         });
 
         const { sheetTabs } = await res.json(); // [{ sheetId, title, index }, ...]
@@ -195,7 +209,10 @@
         try {
             const res = await fetch(PREVIEW_URL, {
                 method: "POST",
-                headers: {"Content-Type": "application/json"},
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${ZYGN_ACCESS_TOKEN}`
+                },
                 body: JSON.stringify({
                     accessToken,
                     sheetId: currentSheetId,
@@ -261,7 +278,10 @@
         try {
             const res = await fetch(SAVE_SHEETS_URL, {
                 method: "POST",
-                headers: {"Content-Type": "application/json"},
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${ZYGN_ACCESS_TOKEN}`
+                },
                 body: JSON.stringify({
                     userRefreshToken: currentUserRefreshToken, // saveSheets needs this, not the access token
                     sourceId: currentSourceId,
