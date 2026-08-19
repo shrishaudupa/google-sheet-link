@@ -19,8 +19,8 @@
 
     <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
     <script>
-        const ZYGN_ACCESS_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyIjp7ImlkIjoxLCJlbWFpbCI6ImFyaXZ1QGdtYWlsLmNvbSIsImZ1bGxuYW1lIjoiU2FnYXIgQmlyYWRhciIsImluaXRpYWxzIjoiU0IiLCJ1c2VyVHlwZSI6IkVtcGxveWVlIiwiZW1wbG95ZWVJZCI6MSwiY29tcGFueUlkIjoxLCJmaXJzdE5hbWUiOiJTYWdhciIsImxhc3ROYW1lIjoiQmlyYWRhciIsIm1vYmlsZU51bWJlciI6IjkxNjQzNjEyMzgiLCJlbXBsb3llZUVtYWlsSWQiOiJzYWdhci56eWduQGdtYWlsLmNvbSIsImVtcGxveWVlTnVtYmVyIjoiRU1QMDAwMDEiLCJhY2Nlc3MiOiJFbmFibGVkIiwiYXR0ZW5kYW5jZSI6IkVuYWJsZWQiLCJ2aXNpdG9ySWQiOiJmNTY4YTBlOWM1YTJmMHdlYjcyMzRjIiwiY29tcGFueU5hbWUiOiJQVEcgUFZUIExURCIsInRvTWFpbCI6InB0Z3RlY2giLCJlbXBsb3llZVR5cGUiOiJVc2VyIiwiY29tcGFueVN0YXR1cyI6IkFjdGl2ZSIsImNvbXBhbnlUeXBlIjoiQ3VzdG9tZXIiLCJjb21wYW55Z3N0TnVtYmVyIjoiR1NUSU4yOTA5ODg5RDYiLCJjb21wYW55UmVnaXN0ZXJlZFllYXIiOjIwMjMsImNvdW50cnlDb2RlIjoiSU4iLCJjb3VudHJ5IjoiSW5kaWEifSwiZW1wbG95ZWVSb2xlcyI6W3sidGVhbSI6IkhSIiwicm9sZSI6Ik1hbmFnZXIifSx7InRlYW0iOiJNYXJrZXRpbmciLCJyb2xlIjoiTWFuYWdlciJ9LHsidGVhbSI6IlNhbGVzIiwicm9sZSI6Ik1hbmFnZXIifSx7InRlYW0iOiJEZXNpZ24iLCJyb2xlIjoiTWFuYWdlciJ9LHsidGVhbSI6IkludmVudG9yeSIsInJvbGUiOiJNYW5hZ2VyIn0seyJ0ZWFtIjoiQWNjb3VudHMiLCJyb2xlIjoiRXhlY3V0aXZlIn0seyJ0ZWFtIjoiT25zaXRlIiwicm9sZSI6Ik1hbmFnZXIifSx7InRlYW0iOiJQcm9jdXJlbWVudCIsInJvbGUiOiJNYW5hZ2VyIn0seyJ0ZWFtIjoiUHJvZHVjdGlvbiIsInJvbGUiOiJNYW5hZ2VyIn0seyJ0ZWFtIjoiQWRtaW4iLCJyb2xlIjoiTWFuYWdlciJ9XSwiaWF0IjoxNzg1ODI1Njk0LCJleHAiOjE3ODU4Njg4OTR9.L7S5fD3vjCrZOPTD1uHFHOW9lwkUhN0x3Szn-YvYizo"; // Replace with
-        const CLIENT_ID = "575192144363-gftvgroqe8qmqpa4bdnc5k7slesca3up.apps.googleusercontent.com";
+        const ZYGN_ACCESS_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyIjp7ImlkIjoxLCJlbWFpbCI6ImFyaXZ1QGdtYWlsLmNvbSIsImZ1bGxuYW1lIjoiU2FnYXIgQmlyYWRhciIsImluaXRpYWxzIjoiU0IiLCJ1c2VyVHlwZSI6IkVtcGxveWVlIiwiZW1wbG95ZWVJZCI6MSwiY29tcGFueUlkIjoxLCJmaXJzdE5hbWUiOiJTYWdhciIsImxhc3ROYW1lIjoiQmlyYWRhciIsIm1vYmlsZU51bWJlciI6IjkxNjQzNjEyMzgiLCJlbXBsb3llZUVtYWlsSWQiOiJzYWdhci56eWduQGdtYWlsLmNvbSIsImVtcGxveWVlTnVtYmVyIjoiRU1QMDAwMDEiLCJhY2Nlc3MiOiJFbmFibGVkIiwiYXR0ZW5kYW5jZSI6IkVuYWJsZWQiLCJ2aXNpdG9ySWQiOiJmNTY4YTBlOWM1YTJmMHdlYjcyMzRjIiwiY29tcGFueU5hbWUiOiJQVEcgUFZUIExURCIsInRvTWFpbCI6InB0Z3RlY2giLCJlbXBsb3llZVR5cGUiOiJVc2VyIiwiY29tcGFueVN0YXR1cyI6IkFjdGl2ZSIsImNvbXBhbnlUeXBlIjoiQ3VzdG9tZXIiLCJjb21wYW55Z3N0TnVtYmVyIjoiR1NUSU4yOTA5ODg5RDYiLCJjb21wYW55UmVnaXN0ZXJlZFllYXIiOjIwMjMsImNvdW50cnlDb2RlIjoiSU4iLCJjb3VudHJ5IjoiSW5kaWEifSwiZW1wbG95ZWVSb2xlcyI6W3sidGVhbSI6IkhSIiwicm9sZSI6Ik1hbmFnZXIifSx7InRlYW0iOiJNYXJrZXRpbmciLCJyb2xlIjoiTWFuYWdlciJ9LHsidGVhbSI6IlNhbGVzIiwicm9sZSI6Ik1hbmFnZXIifSx7InRlYW0iOiJEZXNpZ24iLCJyb2xlIjoiTWFuYWdlciJ9LHsidGVhbSI6IkludmVudG9yeSIsInJvbGUiOiJNYW5hZ2VyIn0seyJ0ZWFtIjoiQWNjb3VudHMiLCJyb2xlIjoiRXhlY3V0aXZlIn0seyJ0ZWFtIjoiT25zaXRlIiwicm9sZSI6Ik1hbmFnZXIifSx7InRlYW0iOiJQcm9jdXJlbWVudCIsInJvbGUiOiJNYW5hZ2VyIn0seyJ0ZWFtIjoiUHJvZHVjdGlvbiIsInJvbGUiOiJNYW5hZ2VyIn0seyJ0ZWFtIjoiQWRtaW4iLCJyb2xlIjoiTWFuYWdlciJ9XSwiaWF0IjoxNzg3MDI5NTgyLCJleHAiOjE3ODcwNzI3ODJ9.SOA8dPMJy89Zl25qEOGRjPxBhNksq7J2k99ri7-pwMA"; // Replace with
+        const CLIENT_ID = "860935328808-m0h14dvqpgm0b93mrl2gtci0ra44u50c.apps.googleusercontent.com";
 
         let tokenClient;
 
@@ -62,10 +62,11 @@
 
         loginButton.onclick = async () => {
             const redirectUrl = "http://localhost:3000/connected";
+            const sourceId = 230
 
             try {
                 const response = await fetch(
-                    `http://localhost:5001/api/googleSheetsIntegration/login?redirectUrl=${encodeURIComponent(redirectUrl)}`,
+                    `https://dev-arivu-backend.rover.zygn.app/api/googleSheetsIntegration/login?redirectUrl=${encodeURIComponent(redirectUrl)}&sourceId=${encodeURIComponent(sourceId)}`, // Replace with actual sourceId if needed
                     {
                         method: "GET",
                         headers: {
